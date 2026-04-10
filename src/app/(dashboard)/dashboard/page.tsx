@@ -1,37 +1,29 @@
-import Link from 'next/link'
+import { createClient } from '@/lib/supabase/server'
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const supabase = await createClient()
+  const today = new Date().toISOString().split('T')[0]
+
+  const { data: entries } = await supabase
+    .from('food_log')
+    .select('calories, protein, status')
+    .eq('date', today)
+    .eq('status', 'eaten')
+
+  const totalCalories = entries?.reduce((sum, e) => sum + Number(e.calories), 0) ?? 0
+  const totalProtein = entries?.reduce((sum, e) => sum + Number(e.protein), 0) ?? 0
+
   return (
-    <div className="max-w-2xl">
-      <h1 className="text-3xl font-semibold text-gray-900 mb-10">Good day 👋</h1>
-
-      <div className="grid grid-cols-2 gap-4">
-        <Link
-          href="/dashboard/notes"
-          className="group block border border-gray-200 rounded-xl p-5 hover:border-gray-400 transition-colors"
-        >
-          <div className="text-2xl mb-3">✎</div>
-          <h2 className="font-medium text-gray-900">Notes</h2>
-          <p className="text-sm text-gray-500 mt-0.5">Write and organise your thoughts</p>
-        </Link>
-
-        <Link
-          href="/dashboard/tasks"
-          className="group block border border-gray-200 rounded-xl p-5 hover:border-gray-400 transition-colors"
-        >
-          <div className="text-2xl mb-3">✓</div>
-          <h2 className="font-medium text-gray-900">Tasks</h2>
-          <p className="text-sm text-gray-500 mt-0.5">Track what needs to get done</p>
-        </Link>
-
-        <Link
-          href="/dashboard/food"
-          className="group block border border-gray-200 rounded-xl p-5 hover:border-gray-400 transition-colors"
-        >
-          <div className="text-2xl mb-3">◎</div>
-          <h2 className="font-medium text-gray-900">Food</h2>
-          <p className="text-sm text-gray-500 mt-0.5">Log calories and protein</p>
-        </Link>
+    <div className="flex justify-end">
+      <div className="flex flex-col gap-2">
+        <div className="bg-white rounded-2xl p-6 shadow-sm text-right">
+          <p className="text-sm text-gray-500">Calories today</p>
+          <p className="text-4xl font-bold text-gray-900">{Math.round(totalCalories)} <span className="text-sm font-normal text-gray-400">kcal</span></p>
+        </div>
+        <div className="bg-white rounded-2xl p-6 shadow-sm text-right">
+          <p className="text-sm text-gray-500">Protein today</p>
+          <p className="text-4xl font-bold text-gray-900">{Math.round(totalProtein)} <span className="text-sm font-normal text-gray-400">g</span></p>
+        </div>
       </div>
     </div>
   )

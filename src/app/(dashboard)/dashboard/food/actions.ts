@@ -115,3 +115,48 @@ export async function addRecipeToLog(
   })
   revalidatePath('/dashboard/food')
 }
+
+// ---- Archive ----
+
+export async function rollupOldEntries(daysToKeep: number = 7) {
+  const supabase = await createClient()
+
+  const cutoffDate = new Date()
+  cutoffDate.setDate(cutoffDate.getDate() - daysToKeep)
+  const cutoff = cutoffDate.toISOString().split('T')[0]
+
+  // Fetch all eaten entries older than the cutoff
+  const { data: oldEntries } = await supabase
+    .from('food_log')
+    .select('date, calories, protein')
+    .eq('status', 'eaten')
+    .lt('date', cutoff)
+
+  if (!oldEntries || oldEntries.length === 0) return { count: 0 }
+
+  // Aggregate by date
+  const byDate: Record<string, { calories: number; protein: number }> = {}
+  for (const entry of oldEntries) {
+    if (!byDate[entry.date]) byDate[entry.date] = { calories: 0, protein: 0 }
+    byDate[entry.date].calories += Number(entry.calories)
+    byDate[entry.date].protein += Number(entry.protein)
+  }
+
+  const dates = Object.keys(byDate)
+
+  // Upsert one summary row per date
+  await supabase.from('daily_summaries').upsert(
+    dates.map((date) => ({
+      date,
+      total_calories: Math.round(byDate[date].calories),
+      total_protein: parseFloat(byDate[date].protein.toFixed(1)),
+    })),
+    { onConflict: 'date' }
+  )
+
+  // Delete ALL log entries (eaten + planned) for those dates
+  await supabase.from('food_log').delete().lt('date', cutoff)
+
+  revalidatePath('/dashboard/food')
+  return { count: dates.length }
+}

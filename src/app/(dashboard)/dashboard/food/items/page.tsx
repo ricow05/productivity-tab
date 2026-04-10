@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
-import FoodItemsClient, { type FoodItem } from './FoodItemsClient'
+import FoodItemsClient from './FoodItemsClient'
+import type { FoodItem } from '../FoodLogClient'
 
 export default async function FoodItemsPage() {
   const supabase = await createClient()

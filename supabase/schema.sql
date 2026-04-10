@@ -91,3 +91,17 @@ create table if not exists public.recipe_items (
 
 alter table public.recipes      disable row level security;
 alter table public.recipe_items disable row level security;
+
+-- -------------------------------------------------------
+-- Daily summaries (archived food log totals)
+-- -------------------------------------------------------
+
+-- Stores aggregated calories/protein per day after old log entries are deleted
+create table if not exists public.daily_summaries (
+  date             date primary key,
+  total_calories   numeric(10,2) not null,
+  total_protein    numeric(10,2) not null,
+  created_at       timestamptz not null default now()
+);
+
+alter table public.daily_summaries disable row level security;

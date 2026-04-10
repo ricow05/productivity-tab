@@ -3,14 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { addFoodItem, deleteFoodItem } from '../actions'
-
-export type FoodItem = {
-  id: string
-  name: string
-  calories: number
-  protein: number
-  unit: string
-}
+import type { FoodItem } from '../FoodLogClient'
 
 export default function FoodItemsClient({ items }: { items: FoodItem[] }) {
   const router = useRouter()

@@ -2,7 +2,8 @@
 
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
-import { addFoodLogEntry, addRecipeToLog, deleteFoodLogEntry, toggleFoodLogStatus } from './actions'
+import { addFoodLogEntry, addRecipeToLog, deleteFoodLogEntry, rollupOldEntries, toggleFoodLogStatus } from './actions'
+import type { DailySummary } from './page'
 
 const MEALS = ['breakfast', 'lunch', 'dinner', 'snack', 'other'] as const
 type Meal = (typeof MEALS)[number]
@@ -56,15 +57,17 @@ type Props = {
   entries: FoodLogEntry[]
   foodItems: FoodItem[]
   recipes: Recipe[]
+  archivedSummary: DailySummary | null
 }
 
-export default function FoodLogClient({ date, entries, foodItems, recipes }: Props) {
+export default function FoodLogClient({ date, entries, foodItems, recipes, archivedSummary }: Props) {
   const router = useRouter()
   const todayStr = today()
   const isFuture = date > todayStr
   const defaultStatus: 'planned' | 'eaten' = isFuture ? 'planned' : 'eaten'
   const [isPending, startTransition] = useTransition()
   const [showForm, setShowForm] = useState(false)
+  const [archivedCount, setArchivedCount] = useState<number | null>(null)
   const [addMode, setAddMode] = useState<'item' | 'recipe'>('item')
   const [selectedItemId, setSelectedItemId] = useState('')
   const [selectedRecipeId, setSelectedRecipeId] = useState('')
@@ -82,7 +85,6 @@ export default function FoodLogClient({ date, entries, foodItems, recipes }: Pro
   const recipeProtein = selectedRecipe ? parseFloat(selectedRecipe.recipe_items.reduce((s, i) => s + Number(i.protein), 0).toFixed(1)) : 0
 
   const eaten = entries.filter((e) => e.status === 'eaten')
-  const planned = entries.filter((e) => e.status === 'planned')
   const eatenCalories = Math.round(eaten.reduce((s, e) => s + Number(e.calories), 0))
   const eatenProtein = parseFloat(eaten.reduce((s, e) => s + Number(e.protein), 0).toFixed(1))
   const totalCalories = Math.round(entries.reduce((s, e) => s + Number(e.calories), 0))
@@ -158,6 +160,14 @@ export default function FoodLogClient({ date, entries, foodItems, recipes }: Pro
   async function handleDelete(id: string) {
     startTransition(async () => {
       await deleteFoodLogEntry(id)
+      router.refresh()
+    })
+  }
+
+  async function handleArchive() {
+    startTransition(async () => {
+      const result = await rollupOldEntries(7)
+      setArchivedCount(result.count)
       router.refresh()
     })
   }
@@ -255,7 +265,20 @@ export default function FoodLogClient({ date, entries, foodItems, recipes }: Pro
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold text-gray-900">Food</h1>
-        <div className="flex gap-4">
+        <div className="flex gap-4 items-center">
+          <button
+            onClick={handleArchive}
+            disabled={isPending}
+            title="Archive eaten entries older than 7 days into daily totals"
+            className="text-sm text-gray-400 hover:text-gray-700 underline underline-offset-2 disabled:opacity-40"
+          >
+            Archive old entries
+          </button>
+          {archivedCount !== null && (
+            <span className="text-xs text-gray-400">
+              {archivedCount === 0 ? 'Nothing to archive' : `Archived ${archivedCount} day${archivedCount !== 1 ? 's' : ''}`}
+            </span>
+          )}
           <a href="/dashboard/food/recipes" className="text-sm text-gray-500 hover:text-gray-900 underline underline-offset-2">Recipes</a>
           <a href="/dashboard/food/items" className="text-sm text-gray-500 hover:text-gray-900 underline underline-offset-2">Food library</a>
         </div>
@@ -295,30 +318,49 @@ export default function FoodLogClient({ date, entries, foodItems, recipes }: Pro
       </div>
 
       {/* Totals */}
-      <div className="grid grid-cols-2 gap-3 mb-6">
-        {/* Calories */}
-        <div className="border border-gray-200 rounded-xl p-4 space-y-3">
-          <div>
-            <p className="text-xs text-gray-500 mb-1">Calories eaten</p>
-            <p className="text-2xl font-semibold text-gray-900">{eatenCalories} <span className="text-sm font-normal text-gray-400">kcal</span></p>
+      {(() => {
+        const isArchived = archivedSummary !== null && entries.length === 0
+        return (
+          <div className="grid grid-cols-2 gap-3 mb-6">
+            {/* Calories */}
+            <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+              <div>
+                <p className="text-xs text-gray-500 mb-1">
+                  {isArchived ? 'Calories eaten (archived)' : 'Calories eaten'}
+                </p>
+                <p className="text-2xl font-semibold text-gray-900">
+                  {isArchived ? archivedSummary.total_calories : eatenCalories}{' '}
+                  <span className="text-sm font-normal text-gray-400">kcal</span>
+                </p>
+              </div>
+              {!isArchived && (
+                <div className="border-t border-gray-100 pt-3">
+                  <p className="text-xs text-gray-400 mb-1">Planned total</p>
+                  <p className="text-lg font-medium text-gray-400">{totalCalories} <span className="text-sm font-normal">kcal</span></p>
+                </div>
+              )}
+            </div>
+            {/* Protein */}
+            <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+              <div>
+                <p className="text-xs text-gray-500 mb-1">
+                  {isArchived ? 'Protein eaten (archived)' : 'Protein eaten'}
+                </p>
+                <p className="text-2xl font-semibold text-gray-900">
+                  {isArchived ? archivedSummary.total_protein : eatenProtein}{' '}
+                  <span className="text-sm font-normal text-gray-400">g</span>
+                </p>
+              </div>
+              {!isArchived && (
+                <div className="border-t border-gray-100 pt-3">
+                  <p className="text-xs text-gray-400 mb-1">Planned total</p>
+                  <p className="text-lg font-medium text-gray-400">{totalProtein} <span className="text-sm font-normal">g</span></p>
+                </div>
+              )}
+            </div>
           </div>
-          <div className="border-t border-gray-100 pt-3">
-            <p className="text-xs text-gray-400 mb-1">Planned total</p>
-            <p className="text-lg font-medium text-gray-400">{totalCalories} <span className="text-sm font-normal">kcal</span></p>
-          </div>
-        </div>
-        {/* Protein */}
-        <div className="border border-gray-200 rounded-xl p-4 space-y-3">
-          <div>
-            <p className="text-xs text-gray-500 mb-1">Protein eaten</p>
-            <p className="text-2xl font-semibold text-gray-900">{eatenProtein} <span className="text-sm font-normal text-gray-400">g</span></p>
-          </div>
-          <div className="border-t border-gray-100 pt-3">
-            <p className="text-xs text-gray-400 mb-1">Planned total</p>
-            <p className="text-lg font-medium text-gray-400">{totalProtein} <span className="text-sm font-normal">g</span></p>
-          </div>
-        </div>
-      </div>
+        )
+      })()}
 
       {/* Entries grouped by meal */}
       {entries.length > 0 && (
@@ -345,7 +387,11 @@ export default function FoodLogClient({ date, entries, foodItems, recipes }: Pro
 
       {entries.length === 0 && !showForm && (
         <div className="text-center py-10 text-gray-400 mb-4">
-          <p className="text-sm">No food logged for {isToday ? 'today' : displayDate}.</p>
+          {archivedSummary ? (
+            <p className="text-sm">This day has been archived. Only the totals are kept.</p>
+          ) : (
+            <p className="text-sm">No food logged for {isToday ? 'today' : displayDate}.</p>
+          )}
         </div>
       )}
 
