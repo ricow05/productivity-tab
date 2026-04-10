@@ -2,7 +2,8 @@
 
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
-import { addFoodItem, deleteFoodItem } from '../actions'
+import { addFoodItem, deleteFoodItem, updateFoodItem } from '../actions'
+import { FOOD_TYPES } from '../FoodLogClient'
 import type { FoodItem } from '../FoodLogClient'
 
 export default function FoodItemsClient({ items }: { items: FoodItem[] }) {
@@ -10,12 +11,50 @@ export default function FoodItemsClient({ items }: { items: FoodItem[] }) {
   const [isPending, startTransition] = useTransition()
   const [showForm, setShowForm] = useState(false)
   const [name, setName] = useState('')
+  const [foodType, setFoodType] = useState<string>('other')
   const [calories, setCalories] = useState('')
   const [protein, setProtein] = useState('')
   const [unit, setUnit] = useState('100g')
 
+  // inline edit state
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editFoodType, setEditFoodType] = useState('')
+  const [editCalories, setEditCalories] = useState('')
+  const [editProtein, setEditProtein] = useState('')
+  const [editUnit, setEditUnit] = useState('')
+
+  function openEdit(item: FoodItem) {
+    setEditingId(item.id)
+    setEditName(item.name)
+    setEditFoodType(item.food_type || 'other')
+    setEditCalories(String(item.calories))
+    setEditProtein(String(item.protein))
+    setEditUnit(item.unit)
+  }
+
+  function closeEdit() {
+    setEditingId(null)
+  }
+
+  async function handleUpdate() {
+    if (!editingId || !editName || !editCalories || !editProtein) return
+    startTransition(async () => {
+      await updateFoodItem(editingId, {
+        name: editName.trim(),
+        food_type: editFoodType,
+        calories: parseFloat(editCalories),
+        protein: parseFloat(editProtein),
+        unit: editUnit.trim() || '100g',
+      })
+      closeEdit()
+      router.refresh()
+    })
+  }
+
   function resetForm() {
     setName('')
+    setFoodType('other')
     setCalories('')
     setProtein('')
     setUnit('100g')
@@ -27,6 +66,7 @@ export default function FoodItemsClient({ items }: { items: FoodItem[] }) {
     startTransition(async () => {
       await addFoodItem({
         name: name.trim(),
+        food_type: foodType,
         calories: parseFloat(calories),
         protein: parseFloat(protein),
         unit: unit.trim() || '100g',
@@ -65,28 +105,83 @@ export default function FoodItemsClient({ items }: { items: FoodItem[] }) {
       )}
 
       {items.length > 0 && (
-        <div className="space-y-1 mb-4">
-          {items.map((item) => (
-            <div
-              key={item.id}
-              className="flex items-center gap-3 px-4 py-3 border border-gray-200 rounded-xl group"
-            >
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900">{item.name}</p>
-                <p className="text-xs text-gray-400">per {item.unit}</p>
+        <div className="space-y-5 mb-4">
+          {FOOD_TYPES.filter((t) => items.some((i) => (i.food_type || 'other') === t)).map((type) => (
+            <div key={type}>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5 px-1">
+                {type.charAt(0).toUpperCase() + type.slice(1)}
+              </p>
+              <div className="space-y-1">
+                {items.filter((i) => (i.food_type || 'other') === type).map((item) => (
+                  <div
+                    key={item.id}
+                    className={`border rounded-xl overflow-hidden transition-colors ${editingId === item.id ? 'border-gray-900' : 'border-gray-200'}`}
+                  >
+                    {editingId === item.id ? (
+                      <div className="px-4 py-3 space-y-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="col-span-2">
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Name</label>
+                            <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)}
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900" />
+                          </div>
+                          <div className="col-span-2">
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Type</label>
+                            <select value={editFoodType} onChange={(e) => setEditFoodType(e.target.value)}
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900">
+                              {FOOD_TYPES.map((t) => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Calories (kcal)</label>
+                            <input type="number" min="0" step="any" value={editCalories} onChange={(e) => setEditCalories(e.target.value)}
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Protein (g)</label>
+                            <input type="number" min="0" step="any" value={editProtein} onChange={(e) => setEditProtein(e.target.value)}
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900" />
+                          </div>
+                          <div className="col-span-2">
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Per unit</label>
+                            <input type="text" value={editUnit} onChange={(e) => setEditUnit(e.target.value)}
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900" />
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={handleUpdate} disabled={!editName || !editCalories || !editProtein || isPending}
+                            className="bg-gray-900 text-white text-sm px-4 py-1.5 rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-40">
+                            Save
+                          </button>
+                          <button onClick={closeEdit}
+                            className="text-sm px-4 py-1.5 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors">
+                            Cancel
+                          </button>
+                          <button onClick={() => { closeEdit(); handleDelete(item.id) }} disabled={isPending}
+                            className="ml-auto text-sm px-3 py-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-40">
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => openEdit(item)}
+                        className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors group"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900">{item.name}</p>
+                          <p className="text-xs text-gray-400">per {item.unit}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-sm text-gray-700">{item.calories} kcal</p>
+                          <p className="text-xs text-gray-400">{item.protein}g protein</p>
+                        </div>
+                        <span className="opacity-0 group-hover:opacity-100 text-gray-300 text-xs ml-1 shrink-0">&#9998;</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
-              <div className="text-right shrink-0">
-                <p className="text-sm text-gray-700">{item.calories} kcal</p>
-                <p className="text-xs text-gray-400">{item.protein}g protein</p>
-              </div>
-              <button
-                onClick={() => handleDelete(item.id)}
-                disabled={isPending}
-                className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-colors text-xs ml-1 shrink-0"
-                aria-label="Delete"
-              >
-                ✕
-              </button>
             </div>
           ))}
         </div>
@@ -104,6 +199,19 @@ export default function FoodItemsClient({ items }: { items: FoodItem[] }) {
                 placeholder="e.g. Chicken breast, Oats, Banana"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900"
               />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Type</label>
+              <select
+                value={foodType}
+                onChange={(e) => setFoodType(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900"
+              >
+                {FOOD_TYPES.map((t) => (
+                  <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
+                ))}
+              </select>
             </div>
 
             <div className="grid grid-cols-3 gap-3">

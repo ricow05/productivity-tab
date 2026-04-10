@@ -5,9 +5,10 @@ import { usePathname } from 'next/navigation'
 
 const navItems = [
   { href: '/dashboard', label: 'Home', icon: '⊞' },
-  { href: '/dashboard/notes', label: 'Notes', icon: '✎' },
-  { href: '/dashboard/tasks', label: 'Tasks', icon: '✓' },
   { href: '/dashboard/food', label: 'Food', icon: '◎' },
+  { href: '/dashboard/habits', label: 'Habits', icon: '◈' },
+  { href: '/dashboard/study', label: 'Study', icon: '◷' },
+  { href: '/dashboard/calendar', label: 'Calendar', icon: '▦' },
 ]
 
 export default function Sidebar() {

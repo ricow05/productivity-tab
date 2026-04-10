@@ -8,9 +8,13 @@ import type { DailySummary } from './page'
 const MEALS = ['breakfast', 'lunch', 'dinner', 'snack', 'other'] as const
 type Meal = (typeof MEALS)[number]
 
+export const FOOD_TYPES = ['carbs', 'dairy', 'eggs', 'fats', 'fish', 'fruits', 'legumes', 'meat', 'nuts', 'snacks', 'vegetables', 'beverages', 'other'] as const
+export type FoodType = (typeof FOOD_TYPES)[number]
+
 export type FoodItem = {
   id: string
   name: string
+  food_type: string
   calories: number
   protein: number
   unit: string
@@ -68,13 +72,17 @@ export default function FoodLogClient({ date, entries, foodItems, recipes, archi
   const [isPending, startTransition] = useTransition()
   const [showForm, setShowForm] = useState(false)
   const [archivedCount, setArchivedCount] = useState<number | null>(null)
-  const [addMode, setAddMode] = useState<'item' | 'recipe'>('item')
+  const [addMode, setAddMode] = useState<'item' | 'recipe' | 'custom'>('item')
   const [selectedItemId, setSelectedItemId] = useState('')
   const [selectedRecipeId, setSelectedRecipeId] = useState('')
   const [quantity, setQuantity] = useState('1')
   const [meal, setMeal] = useState<Meal>('breakfast')
   const [status, setStatus] = useState<'planned' | 'eaten'>(defaultStatus)
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null)
+  const [customName, setCustomName] = useState('')
+  const [customCalories, setCustomCalories] = useState('')
+  const [customProtein, setCustomProtein] = useState('')
+  const [customUnit, setCustomUnit] = useState('g')
 
   const selectedItem = foodItems.find((f) => f.id === selectedItemId) ?? null
   const selectedRecipe = recipes.find((r) => r.id === selectedRecipeId) ?? null
@@ -115,6 +123,10 @@ export default function FoodLogClient({ date, entries, foodItems, recipes, archi
     setMeal('breakfast')
     setStatus(defaultStatus)
     setShowForm(false)
+    setCustomName('')
+    setCustomCalories('')
+    setCustomProtein('')
+    setCustomUnit('g')
   }
 
   async function handleAdd() {
@@ -135,7 +147,7 @@ export default function FoodLogClient({ date, entries, foodItems, recipes, archi
         resetForm()
         router.refresh()
       })
-    } else {
+    } else if (addMode === 'recipe') {
       if (!selectedRecipe) return
       startTransition(async () => {
         await addRecipeToLog(
@@ -144,6 +156,24 @@ export default function FoodLogClient({ date, entries, foodItems, recipes, archi
           status,
           date
         )
+        resetForm()
+        router.refresh()
+      })
+    } else {
+      const customQty = parseFloat(quantity) || 0
+      if (!customName.trim() || customQty <= 0) return
+      startTransition(async () => {
+        await addFoodLogEntry({
+          food_item_id: null,
+          name: customName.trim(),
+          calories: parseFloat(customCalories) || 0,
+          protein: parseFloat(customProtein) || 0,
+          quantity: customQty,
+          unit: customUnit.trim() || 'g',
+          meal,
+          status,
+          date,
+        })
         resetForm()
         router.refresh()
       })
@@ -399,7 +429,7 @@ export default function FoodLogClient({ date, entries, foodItems, recipes, archi
       {showForm ? (
         <div className="border border-gray-200 rounded-xl p-4 mb-4">
           <div className="space-y-3">
-            {/* Food item vs Recipe toggle */}
+            {/* Food item vs Recipe vs Custom toggle */}
             <div className="flex rounded-lg overflow-hidden border border-gray-300 w-fit">
               <button type="button" onClick={() => setAddMode('item')}
                 className={`px-4 py-1.5 text-sm transition-colors ${addMode === 'item' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-50'}`}>
@@ -409,9 +439,73 @@ export default function FoodLogClient({ date, entries, foodItems, recipes, archi
                 className={`px-4 py-1.5 text-sm transition-colors ${addMode === 'recipe' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-50'}`}>
                 Recipe
               </button>
+              <button type="button" onClick={() => setAddMode('custom')}
+                className={`px-4 py-1.5 text-sm transition-colors ${addMode === 'custom' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-50'}`}>
+                Custom
+              </button>
             </div>
 
-            {addMode === 'item' ? (
+            {addMode === 'custom' ? (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Name</label>
+                    <input
+                      type="text"
+                      value={customName}
+                      onChange={(e) => setCustomName(e.target.value)}
+                      placeholder="e.g. Homemade soup"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Calories (kcal)</label>
+                    <input
+                      type="number" min="0" step="any"
+                      value={customCalories}
+                      onChange={(e) => setCustomCalories(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Protein (g)</label>
+                    <input
+                      type="number" min="0" step="any"
+                      value={customProtein}
+                      onChange={(e) => setCustomProtein(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Quantity</label>
+                    <input
+                      type="number" min="0" step="any"
+                      value={quantity}
+                      onChange={(e) => setQuantity(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Unit</label>
+                    <input
+                      type="text"
+                      value={customUnit}
+                      onChange={(e) => setCustomUnit(e.target.value)}
+                      placeholder="g, ml, piece…"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Meal</label>
+                    <select value={meal} onChange={(e) => setMeal(e.target.value as Meal)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900"
+                    >
+                      {MEALS.map((m) => <option key={m} value={m}>{m.charAt(0).toUpperCase() + m.slice(1)}</option>)}
+                    </select>
+                  </div>
+                </div>
+              </>
+            ) : addMode === 'item' ? (
               <>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Food item</label>
@@ -421,10 +515,14 @@ export default function FoodLogClient({ date, entries, foodItems, recipes, archi
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900"
                   >
                     <option value="">Select a food item&hellip;</option>
-                    {foodItems.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.name} &mdash; {item.calories} kcal / {item.unit}
-                      </option>
+                    {FOOD_TYPES.filter((t) => foodItems.some((i) => (i.food_type || 'other') === t)).map((type) => (
+                      <optgroup key={type} label={type.charAt(0).toUpperCase() + type.slice(1)}>
+                        {foodItems.filter((i) => (i.food_type || 'other') === type).map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.name} &mdash; {item.calories} kcal / {item.unit}
+                          </option>
+                        ))}
+                      </optgroup>
                     ))}
                   </select>
                   {foodItems.length === 0 && (
@@ -526,7 +624,12 @@ export default function FoodLogClient({ date, entries, foodItems, recipes, archi
             <div className="flex gap-2 pt-1">
               <button
                 onClick={handleAdd}
-                disabled={(addMode === 'item' ? (!selectedItem || qty <= 0) : !selectedRecipeId) || isPending}
+                disabled={
+                  isPending ||
+                  (addMode === 'item' ? (!selectedItem || qty <= 0) :
+                   addMode === 'recipe' ? !selectedRecipeId :
+                   (!customName.trim() || (parseFloat(quantity) || 0) <= 0))
+                }
                 className="bg-gray-900 text-white text-sm px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-40"
               >
                 Add

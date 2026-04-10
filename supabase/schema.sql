@@ -42,6 +42,7 @@ alter table public.tasks disable row level security;
 create table if not exists public.food_items (
   id         uuid primary key default gen_random_uuid(),
   name       text not null,
+  food_type  text not null default 'other', -- category: meat, fish, dairy, eggs, carbs, vegetables, fruits, legumes, nuts, fats, snacks, beverages, other
   calories   numeric(8,2) not null,   -- kcal per one unit
   protein    numeric(8,2) not null,   -- grams per one unit
   unit       text not null default '100g', -- display label: "100g", "item", "cup", etc.
@@ -105,3 +106,78 @@ create table if not exists public.daily_summaries (
 );
 
 alter table public.daily_summaries disable row level security;
+
+-- -------------------------------------------------------
+-- Daily habits
+-- -------------------------------------------------------
+
+-- Habit definitions (lifetime or time-bounded)
+create table if not exists public.habits (
+  id          uuid primary key default gen_random_uuid(),
+  name        text not null,
+  description text not null default '',
+  type        text not null default 'lifetime', -- 'lifetime' | 'timed'
+  start_date  date not null default current_date,
+  end_date    date,                              -- null for lifetime habits
+  created_at  timestamptz not null default now()
+);
+
+-- One log row per habit per day (upserted on toggle)
+create table if not exists public.habit_logs (
+  id         uuid primary key default gen_random_uuid(),
+  habit_id   uuid not null references public.habits(id) on delete cascade,
+  date       date not null default current_date,
+  completed  boolean not null default false,
+  created_at timestamptz not null default now(),
+  unique (habit_id, date)
+);
+
+alter table public.habits     disable row level security;
+alter table public.habit_logs disable row level security;
+
+-- -------------------------------------------------------
+-- Study time tracking
+-- -------------------------------------------------------
+
+-- Courses
+create table if not exists public.courses (
+  id         uuid primary key default gen_random_uuid(),
+  name       text not null,
+  color      text not null default '#6366f1',
+  created_at timestamptz not null default now()
+);
+
+-- Study tasks (per course)
+create table if not exists public.study_tasks (
+  id                uuid primary key default gen_random_uuid(),
+  course_id         uuid not null references public.courses(id) on delete cascade,
+  title             text not null,
+  status            text not null default 'todo', -- 'todo' | 'in_progress' | 'done'
+  estimated_minutes integer,
+  due_date          date,             -- specific day or range start
+  due_date_end      date,             -- null = specific day, set = range end
+  created_at        timestamptz not null default now()
+);
+
+-- Study blocks (logged work sessions)
+create table if not exists public.study_blocks (
+  id               uuid primary key default gen_random_uuid(),
+  course_id        uuid not null references public.courses(id) on delete cascade,
+  duration_minutes integer not null,
+  end_time         time,             -- end time of the session; start = end_time - duration_minutes
+  date             date not null default current_date,
+  notes            text not null default '',
+  created_at       timestamptz not null default now()
+);
+
+-- Links between study blocks and tasks (many-to-many)
+create table if not exists public.study_block_tasks (
+  study_block_id uuid not null references public.study_blocks(id) on delete cascade,
+  study_task_id  uuid not null references public.study_tasks(id) on delete cascade,
+  primary key (study_block_id, study_task_id)
+);
+
+alter table public.courses           disable row level security;
+alter table public.study_tasks       disable row level security;
+alter table public.study_blocks      disable row level security;
+alter table public.study_block_tasks disable row level security;

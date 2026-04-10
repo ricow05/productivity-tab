@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache'
 
 export async function addFoodItem(data: {
   name: string
+  food_type: string
   calories: number
   protein: number
   unit: string
@@ -22,10 +23,22 @@ export async function deleteFoodItem(id: string) {
   revalidatePath('/dashboard/food/items')
 }
 
+export async function updateFoodItem(id: string, data: {
+  name: string
+  food_type: string
+  calories: number
+  protein: number
+  unit: string
+}) {
+  const supabase = await createClient()
+  await supabase.from('food_items').update(data).eq('id', id)
+  revalidatePath('/dashboard/food/items')
+}
+
 // ---- Food Log ----
 
 export async function addFoodLogEntry(data: {
-  food_item_id: string
+  food_item_id: string | null
   name: string
   calories: number
   protein: number
