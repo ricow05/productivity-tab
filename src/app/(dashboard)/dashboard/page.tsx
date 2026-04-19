@@ -1,12 +1,13 @@
 import { createClient } from '@/lib/supabase/server'
 import IncompleteHabits from './IncompleteHabits'
 import TodayStudyTasks from './TodayStudyTasks'
+import TodayTutoringSchedule from './TodayTutoringSchedule'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
   const today = new Date().toISOString().split('T')[0]
 
-  const [{ data: entries }, { data: habits }, { data: habitLogs }, { data: studyTasks }, { data: blockTasks }] = await Promise.all([
+  const [{ data: entries }, { data: habits }, { data: habitLogs }, { data: studyTasks }, { data: blockTasks }, { data: tutoringMoments }] = await Promise.all([
     supabase.from('food_log').select('calories, protein, status').eq('date', today).eq('status', 'eaten'),
     supabase.from('habits').select('id, name'),
     supabase.from('habit_logs').select('habit_id, completed').eq('date', today).eq('completed', true),
@@ -18,6 +19,11 @@ export default async function DashboardPage() {
       .not('due_date', 'is', null)
       .lte('due_date', today),
     supabase.from('study_block_tasks').select('study_task_id, study_blocks(duration_minutes)'),
+    supabase
+      .from('teaching_moments')
+      .select('id, date, start_time, end_time, price, paid, location_type, student:students(name)')
+      .eq('date', today)
+      .order('start_time', { ascending: true }),
   ])
 
   const totalCalories = entries?.reduce((sum, e) => sum + Number(e.calories), 0) ?? 0
@@ -67,8 +73,9 @@ export default async function DashboardPage() {
           </div>
         </div>
       </div>
-      {/* Row 2: study tasks (2/3) */}
-      <div className="w-2/3">
+      {/* Row 2: today's schedule + study tasks */}
+      <div className="grid lg:grid-cols-[1fr_2fr] gap-4 items-start">
+        <TodayTutoringSchedule moments={(tutoringMoments ?? []) as any} />
         <TodayStudyTasks tasks={(studyTasks ?? []) as unknown as TaskRow[]} today={today} taskMinutes={taskMinutes} />
       </div>
     </div>

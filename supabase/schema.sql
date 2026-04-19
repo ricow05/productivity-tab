@@ -181,3 +181,43 @@ alter table public.courses           disable row level security;
 alter table public.study_tasks       disable row level security;
 alter table public.study_blocks      disable row level security;
 alter table public.study_block_tasks disable row level security;
+
+-- -------------------------------------------------------
+-- Tutoring business
+-- -------------------------------------------------------
+
+create table if not exists public.students (
+  id                     uuid primary key default gen_random_uuid(),
+  name                   text not null,
+  phone                  text not null default '',
+  email                  text not null default '',
+  hourly_rate            numeric(10,2) not null default 0,
+  active                 boolean not null default true,
+  default_payment_method text not null default 'cash', -- cash | bank_transfer
+  default_location_type  text not null default 'in_person', -- online | in_person
+  created_at             timestamptz not null default now()
+);
+
+alter table public.students add column if not exists default_payment_method text not null default 'cash';
+alter table public.students add column if not exists default_location_type text not null default 'in_person';
+
+create table if not exists public.teaching_moments (
+  id               uuid primary key default gen_random_uuid(),
+  student_id       uuid not null references public.students(id) on delete cascade,
+  date             date not null default current_date,
+  start_time       time not null,
+  end_time         time not null,
+  price            numeric(10,2) not null default 0,
+  paid             boolean not null default false,
+  payment_method   text not null default 'cash', -- cash | bank_transfer
+  location_type    text not null default 'in_person', -- online | in_person
+  transfer_note    text not null default '',
+  notes            text not null default '',
+  created_at       timestamptz not null default now(),
+  constraint teaching_moments_payment_method_check check (payment_method in ('cash', 'bank_transfer')),
+  constraint teaching_moments_location_type_check check (location_type in ('online', 'in_person')),
+  constraint teaching_moments_time_check check (end_time > start_time)
+);
+
+alter table public.students          disable row level security;
+alter table public.teaching_moments  disable row level security;

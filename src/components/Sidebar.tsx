@@ -8,7 +8,9 @@ const navItems = [
   { href: '/dashboard/food', label: 'Food', icon: '◎' },
   { href: '/dashboard/habits', label: 'Habits', icon: '◈' },
   { href: '/dashboard/study', label: 'Study', icon: '◷' },
+  { href: '/dashboard/tutoring', label: 'Tutoring', icon: '✦' },
   { href: '/dashboard/calendar', label: 'Calendar', icon: '▦' },
+  { href: '/dashboard/schedule', label: 'Schedule', icon: '☰' },
 ]
 
 export default function Sidebar() {

@@ -15,6 +15,7 @@ type Block = {
 
 type Props = {
   blocks: Block[]
+  title?: string
 }
 
 const HOUR_HEIGHT = 52 // px per hour
@@ -52,7 +53,7 @@ function pad2(n: number) {
   return String(n).padStart(2, '0')
 }
 
-export default function CalendarClient({ blocks }: Props) {
+export default function CalendarClient({ blocks, title = 'Calendar' }: Props) {
   const todayDate = new Date()
   const todayStr = toDateStr(todayDate)
 
@@ -131,7 +132,7 @@ export default function CalendarClient({ blocks }: Props) {
   return (
     <div className="max-w-6xl">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold text-gray-900">Study Calendar</h1>
+        <h1 className="text-2xl font-semibold text-gray-900">{title}</h1>
         {totalWeekMins > 0 && (
           <span className="text-sm text-gray-500">
             Week total:{' '}
