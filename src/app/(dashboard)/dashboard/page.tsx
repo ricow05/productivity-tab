@@ -1,53 +1,38 @@
 import { createClient } from '@/lib/supabase/server'
 import IncompleteHabits from './IncompleteHabits'
-import TodayStudyTasks from './TodayStudyTasks'
 import TodayTutoringSchedule from './TodayTutoringSchedule'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
   const today = new Date().toISOString().split('T')[0]
 
-  const [{ data: entries }, { data: habits }, { data: habitLogs }, { data: studyTasks }, { data: blockTasks }, { data: tutoringMoments }] = await Promise.all([
+  const [{ data: entries }, { data: habits }, { data: habitLogs }, { data: tutoringMoments }, { data: studySessions }, { data: studyTasks }] = await Promise.all([
     supabase.from('food_log').select('calories, protein, status').eq('date', today).eq('status', 'eaten'),
     supabase.from('habits').select('id, name'),
     supabase.from('habit_logs').select('habit_id, completed').eq('date', today).eq('completed', true),
-    // Tasks due on or before today, not done
-    supabase
-      .from('study_tasks')
-      .select('id, title, status, due_date, due_date_end, course:courses(id, name, color)')
-      .neq('status', 'done')
-      .not('due_date', 'is', null)
-      .lte('due_date', today),
-    supabase.from('study_block_tasks').select('study_task_id, study_blocks(duration_minutes)'),
     supabase
       .from('teaching_moments')
-      .select('id, date, start_time, end_time, price, paid, location_type, student:students(name)')
+      .select('id, student_id, date, start_time, end_time, price, paid, payment_method, location_type, transfer_note, notes, student:students(name)')
       .eq('date', today)
       .order('start_time', { ascending: true }),
+    supabase
+      .from('study_task_sessions')
+      .select('id, study_task_id, date, start_time, end_time, notes, task:study_tasks(title, status, course:courses(id, name, color, course_type))')
+      .eq('date', today)
+      .order('start_time', { ascending: true }),
+    supabase
+      .from('study_tasks')
+      .select('id, title, status, course:courses(name, course_type)')
+      .neq('status', 'done')
+      .order('created_at', { ascending: true }),
   ])
 
   const totalCalories = entries?.reduce((sum, e) => sum + Number(e.calories), 0) ?? 0
   const totalProtein = entries?.reduce((sum, e) => sum + Number(e.protein), 0) ?? 0
 
-  const taskMinutes: Record<string, number> = {}
-  for (const bt of blockTasks ?? []) {
-    const block = (bt.study_blocks as unknown as { duration_minutes: number } | null)
-    if (!block) continue
-    taskMinutes[bt.study_task_id] = (taskMinutes[bt.study_task_id] ?? 0) + block.duration_minutes
-  }
-
   const completedIds = new Set((habitLogs ?? []).map((l) => l.habit_id))
   const incompleteHabits = (habits ?? []).filter((h) => !completedIds.has(h.id))
   const allDone = (habits ?? []).length > 0 && incompleteHabits.length === 0
-
-  type TaskRow = {
-    id: string
-    title: string
-    status: 'todo' | 'in_progress' | 'done'
-    due_date: string | null
-    due_date_end: string | null
-    course: { id: string; name: string; color: string }
-  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -74,9 +59,13 @@ export default async function DashboardPage() {
         </div>
       </div>
       {/* Row 2: today's schedule + study tasks */}
-      <div className="grid lg:grid-cols-[1fr_2fr] gap-4 items-start">
-        <TodayTutoringSchedule moments={(tutoringMoments ?? []) as any} />
-        <TodayStudyTasks tasks={(studyTasks ?? []) as unknown as TaskRow[]} today={today} taskMinutes={taskMinutes} />
+      <div className="w-full lg:w-1/2">
+        <TodayTutoringSchedule
+          moments={(tutoringMoments ?? []) as any}
+          sessions={(studySessions ?? []) as any}
+          tasks={(studyTasks ?? []) as any}
+          today={today}
+        />
       </div>
     </div>
   )

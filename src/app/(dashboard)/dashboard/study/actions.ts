@@ -3,9 +3,20 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
-// ---- Courses ----
+const PATHS_TO_REFRESH = [
+  '/dashboard',
+  '/dashboard/study',
+  '/dashboard/calendar',
+  '/dashboard/schedule',
+]
 
-export async function addCourse(data: { name: string; color: string }) {
+function refreshStudyViews() {
+  PATHS_TO_REFRESH.forEach((path) => revalidatePath(path))
+}
+
+// ---- Courses / Projects ----
+
+export async function addCourse(data: { name: string; color: string; course_type: 'school' | 'side_project' }) {
   const supabase = await createClient()
   await supabase.from('courses').insert(data)
   revalidatePath('/dashboard/study')
@@ -28,15 +39,14 @@ export async function addStudyTask(data: {
 }) {
   const supabase = await createClient()
   await supabase.from('study_tasks').insert(data)
-  revalidatePath('/dashboard/study')
+  refreshStudyViews()
 }
 
 export async function cycleStudyTaskStatus(id: string, current: 'todo' | 'in_progress' | 'done') {
   const next = current === 'todo' ? 'in_progress' : current === 'in_progress' ? 'done' : 'todo'
   const supabase = await createClient()
   await supabase.from('study_tasks').update({ status: next }).eq('id', id)
-  revalidatePath('/dashboard/study')
-  revalidatePath('/dashboard')
+  refreshStudyViews()
 }
 
 export async function updateStudyTask(id: string, data: {
@@ -47,13 +57,51 @@ export async function updateStudyTask(id: string, data: {
 }) {
   const supabase = await createClient()
   await supabase.from('study_tasks').update(data).eq('id', id)
-  revalidatePath('/dashboard/study')
+  refreshStudyViews()
 }
 
 export async function deleteStudyTask(id: string) {
   const supabase = await createClient()
   await supabase.from('study_tasks').delete().eq('id', id)
-  revalidatePath('/dashboard/study')
+  refreshStudyViews()
+}
+
+export async function addStudyTaskSession(data: {
+  study_task_id: string
+  date: string
+  start_time: string
+  end_time: string
+  notes: string
+}) {
+  if (!data.study_task_id || !data.date || !data.start_time || !data.end_time || data.end_time <= data.start_time) {
+    return
+  }
+
+  const supabase = await createClient()
+  await supabase.from('study_task_sessions').insert(data)
+  refreshStudyViews()
+}
+
+export async function updateStudyTaskSession(id: string, data: {
+  study_task_id: string
+  date: string
+  start_time: string
+  end_time: string
+  notes: string
+}) {
+  if (!id || !data.study_task_id || !data.date || !data.start_time || !data.end_time || data.end_time <= data.start_time) {
+    return
+  }
+
+  const supabase = await createClient()
+  await supabase.from('study_task_sessions').update(data).eq('id', id)
+  refreshStudyViews()
+}
+
+export async function deleteStudyTaskSession(id: string) {
+  const supabase = await createClient()
+  await supabase.from('study_task_sessions').delete().eq('id', id)
+  refreshStudyViews()
 }
 
 // ---- Study Blocks ----
@@ -88,12 +136,11 @@ export async function addStudyBlock(data: {
     )
   }
 
-  revalidatePath('/dashboard/study')
-  revalidatePath('/dashboard')
+  refreshStudyViews()
 }
 
 export async function deleteStudyBlock(id: string) {
   const supabase = await createClient()
   await supabase.from('study_blocks').delete().eq('id', id)
-  revalidatePath('/dashboard/study')
+  refreshStudyViews()
 }

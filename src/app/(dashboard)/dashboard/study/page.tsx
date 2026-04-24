@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import StudyClient, { type Course, type StudyTask, type StudyBlock } from './StudyClient'
+import StudyClient, { type Course, type StudyTask, type StudyBlock, type StudyTaskSession } from './StudyClient'
 
 export default async function StudyPage() {
   const supabase = await createClient()
@@ -20,21 +20,42 @@ export default async function StudyPage() {
     { data: todayBlocks },
     { data: weekBlocks },
     { data: blockTasks },
+    { data: sessions },
   ] = await Promise.all([
-    supabase.from('courses').select('id, name, color').order('created_at', { ascending: true }),
+    supabase.from('courses').select('id, name, color, course_type').order('created_at', { ascending: true }),
     supabase.from('study_tasks').select('id, course_id, title, status, estimated_minutes, due_date, due_date_end').order('created_at', { ascending: true }),
     supabase
       .from('study_blocks')
-      .select('id, course_id, duration_minutes, end_time, date, notes, created_at, course:courses(name, color), tasks:study_block_tasks(study_task_id, study_tasks(title))')
+      .select('id, course_id, duration_minutes, end_time, date, notes, created_at, course:courses(name, color, course_type), tasks:study_block_tasks(study_task_id, study_tasks(title))')
       .order('created_at', { ascending: false })
       .limit(50),
-    supabase.from('study_blocks').select('duration_minutes').eq('date', today),
-    supabase.from('study_blocks').select('duration_minutes').gte('date', weekStart),
+    supabase.from('study_blocks').select('course_id, duration_minutes').eq('date', today),
+    supabase.from('study_blocks').select('course_id, duration_minutes').gte('date', weekStart),
     supabase.from('study_block_tasks').select('study_task_id, study_blocks(duration_minutes)'),
+    supabase
+      .from('study_task_sessions')
+      .select('id, study_task_id, date, start_time, end_time, notes, created_at')
+      .order('date', { ascending: true })
+      .order('start_time', { ascending: true }),
   ])
 
-  const todayMinutes = (todayBlocks ?? []).reduce((sum, b) => sum + b.duration_minutes, 0)
-  const weekMinutes = (weekBlocks ?? []).reduce((sum, b) => sum + b.duration_minutes, 0)
+  const courseTypeById = new Map(
+    (courses ?? []).map((course) => [course.id, course.course_type ?? 'school'] as const)
+  )
+
+  function sumMinutesByType(entries: Array<{ course_id: string; duration_minutes: number }> | null | undefined) {
+    const totals = { school: 0, side_project: 0 }
+
+    for (const entry of entries ?? []) {
+      const type = courseTypeById.get(entry.course_id) === 'side_project' ? 'side_project' : 'school'
+      totals[type] += entry.duration_minutes
+    }
+
+    return totals
+  }
+
+  const todayMinutesByType = sumMinutesByType(todayBlocks)
+  const weekMinutesByType = sumMinutesByType(weekBlocks)
 
   // Sum duration per task
   const taskMinutes: Record<string, number> = {}
@@ -49,9 +70,10 @@ export default async function StudyPage() {
       courses={(courses ?? []) as Course[]}
       tasks={(tasks ?? []) as StudyTask[]}
       blocks={(blocks ?? []) as unknown as StudyBlock[]}
-      todayMinutes={todayMinutes}
-      weekMinutes={weekMinutes}
+      todayMinutesByType={todayMinutesByType}
+      weekMinutesByType={weekMinutesByType}
       taskMinutes={taskMinutes}
+      sessions={(sessions ?? []) as StudyTaskSession[]}
       today={today}
     />
   )

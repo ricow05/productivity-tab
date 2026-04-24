@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 
 type Block = {
   id: string
@@ -9,8 +10,11 @@ type Block = {
   end_time: string | null
   date: string
   notes: string
-  course: { name: string; color: string }
+  course: { name: string; color: string; course_type?: 'school' | 'side_project' }
   tasks: { study_task_id: string; study_tasks: { title: string } | null }[]
+  entry_type?: 'study_block' | 'teaching_moment' | 'study_session'
+  source_id?: string
+  source_task_id?: string
 }
 
 type Props = {
@@ -54,6 +58,7 @@ function pad2(n: number) {
 }
 
 export default function CalendarClient({ blocks, title = 'Calendar' }: Props) {
+  const router = useRouter()
   const todayDate = new Date()
   const todayStr = toDateStr(todayDate)
 
@@ -103,6 +108,19 @@ export default function CalendarClient({ blocks, title = 'Calendar' }: Props) {
   function goToday() {
     setWeekStart(getMonday(new Date()))
     setSelectedBlock(null)
+  }
+
+  function openEditor(block: Block) {
+    if (block.entry_type === 'teaching_moment' && block.source_id) {
+      router.push(`/dashboard/tutoring?editMoment=${block.source_id}`)
+      return
+    }
+
+    if (block.entry_type === 'study_session' && block.source_task_id) {
+      const params = new URLSearchParams({ editTask: block.source_task_id })
+      if (block.source_id) params.set('editSession', block.source_id)
+      router.push(`/dashboard/study?${params.toString()}`)
+    }
   }
 
   const weekLabel = (() => {
@@ -318,9 +336,23 @@ export default function CalendarClient({ blocks, title = 'Calendar' }: Props) {
             <div className="flex items-center gap-3 flex-wrap mb-2">
               <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: b.course.color }} />
               <span className="font-semibold text-gray-900">{b.course.name}</span>
+              {b.course.course_type && (
+                <span className="text-[10px] uppercase tracking-wide bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                  {b.course.course_type === 'side_project' ? 'Side project' : 'School'}
+                </span>
+              )}
               <span className="text-sm font-semibold text-indigo-600">{formatMinutes(b.duration_minutes)}</span>
               {timeLabel && <span className="text-sm text-gray-400">{timeLabel}</span>}
-              <span className="text-sm text-gray-400 ml-auto">
+              {(b.entry_type === 'teaching_moment' || b.entry_type === 'study_session') && (
+                <button
+                  type="button"
+                  onClick={() => openEditor(b)}
+                  className="ml-auto rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700 transition-colors"
+                >
+                  Edit session
+                </button>
+              )}
+              <span className="text-sm text-gray-400">
                 {new Date(b.date + 'T00:00:00').toLocaleDateString('en-US', {
                   weekday: 'long', month: 'short', day: 'numeric',
                 })}

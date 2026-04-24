@@ -8,7 +8,7 @@ export default async function CalendarPage() {
   const [{ data: blocks }, { data: moments }] = await Promise.all([
     supabase
       .from('study_blocks')
-      .select('id, course_id, duration_minutes, end_time, date, notes, course:courses(name, color), tasks:study_block_tasks(study_task_id, study_tasks(title))')
+      .select('id, course_id, duration_minutes, end_time, date, notes, course:courses(name, color, course_type), tasks:study_block_tasks(study_task_id, study_tasks(title))')
       .order('date', { ascending: false }),
     supabase
       .from('teaching_moments')

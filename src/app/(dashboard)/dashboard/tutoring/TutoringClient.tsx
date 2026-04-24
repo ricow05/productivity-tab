@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   addStudent,
   addTeachingMoment,
@@ -68,6 +69,9 @@ function formatMomentDate(value: string) {
 
 export default function TutoringClient({ students, moments, today }: Props) {
   const [, startTransition] = useTransition()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const editMomentParam = searchParams.get('editMoment')
 
   const allStudents = useMemo(
     () => [...students].sort((a, b) => a.name.localeCompare(b.name)),
@@ -180,6 +184,16 @@ export default function TutoringClient({ students, moments, today }: Props) {
     setStudentDefaultLocationType(student.default_location_type)
     setShowStudentForm(true)
   }
+
+  useEffect(() => {
+    if (!editMomentParam) return
+
+    const moment = moments.find((item) => item.id === editMomentParam)
+    if (!moment) return
+
+    openEditMoment(moment)
+    router.replace('/dashboard/tutoring', { scroll: false })
+  }, [editMomentParam, moments, router])
 
   function resetStudentForm() {
     setEditingStudentId(null)

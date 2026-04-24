@@ -139,13 +139,16 @@ alter table public.habit_logs disable row level security;
 -- Study time tracking
 -- -------------------------------------------------------
 
--- Courses
+-- Courses / side projects
 create table if not exists public.courses (
-  id         uuid primary key default gen_random_uuid(),
-  name       text not null,
-  color      text not null default '#6366f1',
-  created_at timestamptz not null default now()
+  id          uuid primary key default gen_random_uuid(),
+  name        text not null,
+  color       text not null default '#6366f1',
+  course_type text not null default 'school', -- 'school' | 'side_project'
+  created_at  timestamptz not null default now()
 );
+
+alter table public.courses add column if not exists course_type text not null default 'school';
 
 -- Study tasks (per course)
 create table if not exists public.study_tasks (
@@ -177,10 +180,26 @@ create table if not exists public.study_block_tasks (
   primary key (study_block_id, study_task_id)
 );
 
-alter table public.courses           disable row level security;
-alter table public.study_tasks       disable row level security;
-alter table public.study_blocks      disable row level security;
-alter table public.study_block_tasks disable row level security;
+-- Planned study sessions (lets one task be scheduled multiple times)
+create table if not exists public.study_task_sessions (
+  id            uuid primary key default gen_random_uuid(),
+  study_task_id uuid not null references public.study_tasks(id) on delete cascade,
+  date          date not null default current_date,
+  start_time    time not null,
+  end_time      time not null,
+  notes         text not null default '',
+  created_at    timestamptz not null default now(),
+  constraint study_task_sessions_time_check check (end_time > start_time)
+);
+
+create index if not exists study_task_sessions_task_date_idx
+  on public.study_task_sessions(study_task_id, date, start_time);
+
+alter table public.courses             disable row level security;
+alter table public.study_tasks         disable row level security;
+alter table public.study_blocks        disable row level security;
+alter table public.study_block_tasks   disable row level security;
+alter table public.study_task_sessions disable row level security;
 
 -- -------------------------------------------------------
 -- Tutoring business
