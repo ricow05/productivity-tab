@@ -23,7 +23,7 @@ export default async function StudyPage() {
     { data: sessions },
   ] = await Promise.all([
     supabase.from('courses').select('id, name, color, course_type').order('created_at', { ascending: true }),
-    supabase.from('study_tasks').select('id, course_id, title, status, estimated_minutes, due_date, due_date_end').order('created_at', { ascending: true }),
+    supabase.from('study_tasks').select('id, course_id, title, status, estimated_minutes, due_date, due_date_end, hard_deadline').order('created_at', { ascending: true }),
     supabase
       .from('study_blocks')
       .select('id, course_id, duration_minutes, end_time, date, notes, created_at, course:courses(name, color, course_type), tasks:study_block_tasks(study_task_id, study_tasks(title))')

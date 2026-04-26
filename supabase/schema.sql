@@ -159,8 +159,11 @@ create table if not exists public.study_tasks (
   estimated_minutes integer,
   due_date          date,             -- specific day or range start
   due_date_end      date,             -- null = specific day, set = range end
+  hard_deadline     timestamptz,      -- exact timestamp deadline
   created_at        timestamptz not null default now()
 );
+
+alter table public.study_tasks add column if not exists hard_deadline timestamptz;
 
 -- Study blocks (logged work sessions)
 create table if not exists public.study_blocks (

@@ -33,6 +33,7 @@ export type StudyTask = {
   estimated_minutes: number | null
   due_date: string | null
   due_date_end: string | null
+  hard_deadline: string | null
 }
 
 export type StudyBlock = {
@@ -87,6 +88,38 @@ function formatTimeRange(start: string, end: string) {
   return `${start.slice(0, 5)} → ${end.slice(0, 5)}`
 }
 
+function toDatetimeLocalValue(value: string | null) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  return `${year}-${month}-${day}T${hours}:${minutes}`
+}
+
+function toIsoFromDatetimeLocal(value: string) {
+  if (!value) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return date.toISOString()
+}
+
+function formatDateTime(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString([], {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 const COLORS = [
   '#6366f1', '#f59e0b', '#10b981', '#ef4444',
   '#3b82f6', '#8b5cf6', '#f97316', '#14b8a6',
@@ -137,6 +170,7 @@ export default function StudyClient({ courses, tasks, blocks, todayMinutesByType
   const [taskDateType, setTaskDateType] = useState<'none' | 'day' | 'range'>('none')
   const [taskDueDate, setTaskDueDate] = useState(today)
   const [taskDueDateEnd, setTaskDueDateEnd] = useState(today)
+  const [taskHardDeadline, setTaskHardDeadline] = useState('')
   const [showTaskForm, setShowTaskForm] = useState(false)
 
   // --- Inline edit ---
@@ -148,6 +182,7 @@ export default function StudyClient({ courses, tasks, blocks, todayMinutesByType
   const [editDateType, setEditDateType] = useState<'none' | 'day' | 'range'>('none')
   const [editDueDate, setEditDueDate] = useState(today)
   const [editDueDateEnd, setEditDueDateEnd] = useState(today)
+  const [editHardDeadline, setEditHardDeadline] = useState('')
   const [sessionDate, setSessionDate] = useState(today)
   const [sessionStartTime, setSessionStartTime] = useState(() => getTimeValue(0))
   const [sessionEndTime, setSessionEndTime] = useState(() => getTimeValue(60))
@@ -172,6 +207,7 @@ export default function StudyClient({ courses, tasks, blocks, todayMinutesByType
       setEditDueDate(t.due_date)
       setEditDueDateEnd(today)
     }
+    setEditHardDeadline(toDatetimeLocalValue(t.hard_deadline))
 
     if (session) {
       setEditingSessionId(session.id)
@@ -195,12 +231,14 @@ export default function StudyClient({ courses, tasks, blocks, todayMinutesByType
     const totalEst = editEstHours * 60 + editEstMinutes
     const due_date = editDateType !== 'none' ? editDueDate : null
     const due_date_end = editDateType === 'range' ? editDueDateEnd : null
+    const hard_deadline = toIsoFromDatetimeLocal(editHardDeadline)
     startTransition(async () => {
       await updateStudyTask(editingTaskId, {
         title: editTitle.trim(),
         estimated_minutes: totalEst > 0 ? totalEst : null,
         due_date,
         due_date_end,
+        hard_deadline,
       })
       setEditingTaskId(null)
       setEditingSessionId(null)
@@ -309,6 +347,7 @@ export default function StudyClient({ courses, tasks, blocks, todayMinutesByType
     const totalEst = taskEstHours * 60 + taskEstMinutes
     const due_date = taskDateType !== 'none' ? taskDueDate : null
     const due_date_end = taskDateType === 'range' ? taskDueDateEnd : null
+    const hard_deadline = toIsoFromDatetimeLocal(taskHardDeadline)
     startTransition(async () => {
       await addStudyTask({
         course_id: taskCourseId,
@@ -316,6 +355,7 @@ export default function StudyClient({ courses, tasks, blocks, todayMinutesByType
         estimated_minutes: totalEst > 0 ? totalEst : null,
         due_date,
         due_date_end,
+        hard_deadline,
       })
       setTaskTitle('')
       setTaskEstHours(0)
@@ -323,6 +363,7 @@ export default function StudyClient({ courses, tasks, blocks, todayMinutesByType
       setTaskDateType('none')
       setTaskDueDate(today)
       setTaskDueDateEnd(today)
+      setTaskHardDeadline('')
       setShowTaskForm(false)
     })
   }
@@ -796,6 +837,15 @@ export default function StudyClient({ courses, tasks, blocks, todayMinutesByType
                       </div>
                     )}
                   </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Hard deadline</label>
+                    <input
+                      type="datetime-local"
+                      value={taskHardDeadline}
+                      onChange={(e) => setTaskHardDeadline(e.target.value)}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-300"
+                    />
+                  </div>
                   <button
                     type="submit"
                     className="bg-gray-900 text-white text-sm px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
@@ -876,6 +926,11 @@ export default function StudyClient({ courses, tasks, blocks, todayMinutesByType
                                     {t.due_date && (
                                       <span className="text-xs text-indigo-500">
                                         {t.due_date_end ? `${t.due_date} → ${t.due_date_end}` : t.due_date}
+                                      </span>
+                                    )}
+                                    {t.hard_deadline && (
+                                      <span className="text-xs text-rose-600">
+                                        Hard deadline: {formatDateTime(t.hard_deadline)}
                                       </span>
                                     )}
                                     {scheduledSessions.length > 0 && (
@@ -960,6 +1015,15 @@ export default function StudyClient({ courses, tasks, blocks, todayMinutesByType
                                         />
                                       </div>
                                     )}
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">Hard deadline</label>
+                                    <input
+                                      type="datetime-local"
+                                      value={editHardDeadline}
+                                      onChange={(e) => setEditHardDeadline(e.target.value)}
+                                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-300"
+                                    />
                                   </div>
                                   <div className="border-t border-gray-200 pt-3 space-y-3">
                                     <div className="flex items-center justify-between gap-2">

@@ -36,6 +36,7 @@ export async function addStudyTask(data: {
   estimated_minutes: number | null
   due_date: string | null
   due_date_end: string | null
+  hard_deadline: string | null
 }) {
   const supabase = await createClient()
   await supabase.from('study_tasks').insert(data)
@@ -54,6 +55,7 @@ export async function updateStudyTask(id: string, data: {
   estimated_minutes: number | null
   due_date: string | null
   due_date_end: string | null
+  hard_deadline: string | null
 }) {
   const supabase = await createClient()
   await supabase.from('study_tasks').update(data).eq('id', id)
