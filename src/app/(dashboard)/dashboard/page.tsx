@@ -66,6 +66,9 @@ function getDeadlineBlockTone(deadlineAt: Date, now: Date) {
 export default async function DashboardPage() {
   const supabase = await createClient()
   const today = new Date().toISOString().split('T')[0]
+  const tomorrowDate = new Date()
+  tomorrowDate.setDate(tomorrowDate.getDate() + 1)
+  const tomorrow = tomorrowDate.toISOString().split('T')[0]
 
   const [{ data: entries }, { data: habits }, { data: habitLogs }, { data: tutoringMoments }, { data: studySessions }, { data: studyTasks }] = await Promise.all([
     supabase.from('food_log').select('calories, protein, status').eq('date', today).eq('status', 'eaten'),
@@ -74,12 +77,12 @@ export default async function DashboardPage() {
     supabase
       .from('teaching_moments')
       .select('id, student_id, date, start_time, end_time, price, paid, payment_method, location_type, transfer_note, notes, student:students(name)')
-      .eq('date', today)
+      .in('date', [today, tomorrow])
       .order('start_time', { ascending: true }),
     supabase
       .from('study_task_sessions')
       .select('id, study_task_id, date, start_time, end_time, notes, task:study_tasks(title, status, course:courses(id, name, color, course_type))')
-      .eq('date', today)
+      .in('date', [today, tomorrow])
       .order('start_time', { ascending: true }),
     supabase
       .from('study_tasks')
@@ -174,6 +177,7 @@ export default async function DashboardPage() {
             sessions={(studySessions ?? []) as any}
             tasks={(studyTasks ?? []) as any}
             today={today}
+            tomorrow={tomorrow}
           />
         </div>
       </div>

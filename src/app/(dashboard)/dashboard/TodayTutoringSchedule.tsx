@@ -61,6 +61,7 @@ type ScheduleItem = {
   studySessionId?: string
   tutoringMomentId?: string
   courseId?: string
+  courseName?: string
 }
 
 function formatCurrency(value: number | string) {
@@ -128,8 +129,9 @@ function formatMinutes(mins: number) {
 
 const HOUR_HEIGHT = 64
 
-export default function TodayTutoringSchedule({ moments, sessions = [], tasks = [], today }: { moments: Moment[]; sessions?: StudySession[]; tasks?: HomeTask[]; today: string }) {
+export default function TodayTutoringSchedule({ moments, sessions = [], tasks = [], today, tomorrow }: { moments: Moment[]; sessions?: StudySession[]; tasks?: HomeTask[]; today: string; tomorrow: string }) {
   const [, startTransition] = useTransition()
+  const [selectedDate, setSelectedDate] = useState(today)
   const [loggingItemId, setLoggingItemId] = useState<string | null>(null)
   const [editingItemId, setEditingItemId] = useState<string | null>(null)
   const [showAddSession, setShowAddSession] = useState(false)
@@ -188,15 +190,18 @@ export default function TodayTutoringSchedule({ moments, sessions = [], tasks = 
         studyTaskId: session.study_task_id,
         studySessionId: session.id,
         courseId: course.id,
+        courseName: course.name,
       }
     }),
   ].sort((left, right) => left.start_time.localeCompare(right.start_time))
+
+  const itemsForSelectedDate = items.filter((item) => item.date === selectedDate)
 
   const { displayStart, displayEnd } = (() => {
     let minMin = 8 * 60
     let maxMin = 20 * 60
 
-    for (const item of items) {
+    for (const item of itemsForSelectedDate) {
       const start = toMinutes(item.start_time)
       const end = toMinutes(item.end_time)
       if (start < minMin) minMin = start
@@ -211,8 +216,8 @@ export default function TodayTutoringSchedule({ moments, sessions = [], tasks = 
 
   const displayHours = displayEnd - displayStart
   const gridHeight = displayHours * HOUR_HEIGHT
-  const activeItem = items.find((item) => item.id === loggingItemId) ?? null
-  const activeEditItem = items.find((item) => item.id === editingItemId) ?? null
+  const activeItem = itemsForSelectedDate.find((item) => item.id === loggingItemId) ?? null
+  const activeEditItem = itemsForSelectedDate.find((item) => item.id === editingItemId) ?? null
 
   const tasksByCourse = tasks.reduce<Record<string, HomeTask[]>>((acc, task) => {
     const courseName = getTaskCourseName(task.course)
@@ -366,24 +371,48 @@ export default function TodayTutoringSchedule({ moments, sessions = [], tasks = 
     })
   }
 
-  if (items.length === 0) {
-    return (
-      <div className="bg-white rounded-2xl p-5 shadow-sm">
-        <p className="text-sm font-medium text-gray-500 mb-2">Today’s schedule</p>
-        <p className="text-sm text-gray-400">No sessions or study blocks planned for today.</p>
-      </div>
-    )
-  }
+  const dayTitle = selectedDate === today ? 'Today' : 'Tomorrow'
+  const dayDateLabel = new Date(`${selectedDate}T00:00:00`).toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+  })
 
   return (
     <div className="bg-white rounded-2xl p-5 shadow-sm">
       <div className="flex items-center justify-between gap-3 mb-3">
         <div>
-          <p className="text-sm font-medium text-gray-500">Today’s schedule</p>
+          <p className="text-sm font-medium text-gray-500">{dayTitle}'s schedule</p>
           <p className="text-xs text-gray-400">Click a session to edit it</p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400">{items.length} item{items.length === 1 ? '' : 's'}</span>
+          <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedDate(today)
+                setSessionDate(today)
+                setEditingItemId(null)
+                setLoggingItemId(null)
+              }}
+              className={`text-xs px-2.5 py-1.5 transition-colors ${selectedDate === today ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-100'}`}
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedDate(tomorrow)
+                setSessionDate(tomorrow)
+                setEditingItemId(null)
+                setLoggingItemId(null)
+              }}
+              className={`text-xs px-2.5 py-1.5 transition-colors ${selectedDate === tomorrow ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-100'}`}
+            >
+              Tomorrow
+            </button>
+          </div>
+          <span className="text-xs text-gray-400">{itemsForSelectedDate.length} item{itemsForSelectedDate.length === 1 ? '' : 's'}</span>
           <button
             onClick={() => setShowAddSession((value) => !value)}
             className="text-xs bg-gray-900 text-white px-2.5 py-1.5 rounded-lg hover:bg-gray-700 transition-colors"
@@ -466,136 +495,143 @@ export default function TodayTutoringSchedule({ moments, sessions = [], tasks = 
         <div className="grid border-b border-gray-100 bg-gray-50" style={{ gridTemplateColumns: '3.5rem 1fr' }}>
           <div />
           <div className="px-3 py-2 text-sm font-semibold text-gray-700">
-            {new Date().toLocaleDateString('en-US', {
-              weekday: 'long',
-              month: 'short',
-              day: 'numeric',
-            })}
+            {dayDateLabel}
           </div>
         </div>
 
-        <div className="overflow-y-auto" style={{ maxHeight: '32rem' }}>
-          <div className="grid" style={{ gridTemplateColumns: '3.5rem 1fr' }}>
-            <div className="relative select-none bg-white" style={{ height: gridHeight }}>
-              {Array.from({ length: displayHours + 1 }).map((_, i) => {
-                const hour = displayStart + i
-                return (
+        {itemsForSelectedDate.length === 0 ? (
+          <div className="p-4">
+            <p className="text-sm text-gray-400">No sessions or study blocks planned for {dayTitle.toLowerCase()}.</p>
+          </div>
+        ) : (
+          <div className="overflow-y-auto" style={{ maxHeight: '32rem' }}>
+            <div className="grid" style={{ gridTemplateColumns: '3.5rem 1fr' }}>
+              <div className="relative select-none bg-white" style={{ height: gridHeight }}>
+                {Array.from({ length: displayHours + 1 }).map((_, i) => {
+                  const hour = displayStart + i
+                  return (
+                    <div
+                      key={hour}
+                      className="absolute right-2 flex items-center"
+                      style={{ top: i * HOUR_HEIGHT - 8, height: 16 }}
+                    >
+                      <span className="text-xs text-gray-300">{pad2(hour)}:00</span>
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div className="relative bg-white border-l border-gray-100" style={{ height: gridHeight }}>
+                {Array.from({ length: displayHours + 1 }).map((_, i) => (
                   <div
-                    key={hour}
-                    className="absolute right-2 flex items-center"
-                    style={{ top: i * HOUR_HEIGHT - 8, height: 16 }}
-                  >
-                    <span className="text-xs text-gray-300">{pad2(hour)}:00</span>
-                  </div>
-                )
-              })}
-            </div>
+                    key={i}
+                    className="absolute left-0 right-0 border-t border-gray-100"
+                    style={{ top: i * HOUR_HEIGHT }}
+                  />
+                ))}
 
-            <div className="relative bg-white border-l border-gray-100" style={{ height: gridHeight }}>
-              {Array.from({ length: displayHours + 1 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="absolute left-0 right-0 border-t border-gray-100"
-                  style={{ top: i * HOUR_HEIGHT }}
-                />
-              ))}
-
-              {Array.from({ length: displayHours }).map((_, i) => (
-                <div
-                  key={`half-${i}`}
-                  className="absolute left-0 right-0 border-t border-gray-50"
-                  style={{ top: i * HOUR_HEIGHT + HOUR_HEIGHT / 2 }}
-                />
-              ))}
-
-              {showCurrentTime && (
-                <div
-                  className="absolute left-0 right-0 z-20 pointer-events-none"
-                  style={{ top: currentTimeTop }}
-                >
-                  <div className="relative flex items-center">
-                    <span className="w-2.5 h-2.5 rounded-full bg-red-500 -ml-1" />
-                    <div className="h-0.5 flex-1 bg-red-500" />
-                  </div>
-                </div>
-              )}
-
-              {items.map((item) => {
-                const startMin = toMinutes(item.start_time)
-                const endMin = toMinutes(item.end_time)
-                const top = ((startMin - displayStart * 60) / 60) * HOUR_HEIGHT
-                const height = Math.max(((endMin - startMin) / 60) * HOUR_HEIGHT, 56)
-                const isActive = item.id === loggingItemId
-
-                return (
+                {Array.from({ length: displayHours }).map((_, i) => (
                   <div
-                    key={item.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => openEditor(item)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault()
-                        openEditor(item)
-                      }
-                    }}
-                    className={`absolute left-2 right-2 rounded-xl border p-2 shadow-sm cursor-pointer transition-shadow ${isActive ? 'ring-2 ring-gray-800 ring-offset-1 z-10' : 'z-0 hover:shadow-md'}`}
-                    style={{
-                      top,
-                      minHeight: height,
-                      backgroundColor: item.accentColor + '18',
-                      borderColor: item.accentColor + '55',
-                    }}
+                    key={`half-${i}`}
+                    className="absolute left-0 right-0 border-t border-gray-50"
+                    style={{ top: i * HOUR_HEIGHT + HOUR_HEIGHT / 2 }}
+                  />
+                ))}
+
+                {showCurrentTime && selectedDate === today && (
+                  <div
+                    className="absolute left-0 right-0 z-20 pointer-events-none"
+                    style={{ top: currentTimeTop }}
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-xs font-medium" style={{ color: item.accentColor }}>
-                          {item.start_time.slice(0, 5)} - {item.end_time.slice(0, 5)}
-                        </p>
-                        <p className="text-sm font-semibold text-gray-900">{item.title}</p>
-                        <p className="text-xs text-gray-600">{item.subtitle}</p>
-                      </div>
-                      {item.kind === 'study' && item.studyTaskId && item.courseId && (
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              startTransition(() => cycleStudyTaskStatus(item.studyTaskId!, item.taskStatus ?? 'todo'))
-                            }}
-                            className={`w-5 h-5 rounded-full border-2 transition-colors ${
-                              item.taskStatus === 'done'
-                                ? 'bg-green-500 border-green-500'
-                                : item.taskStatus === 'in_progress'
-                                ? 'bg-amber-400 border-amber-400'
-                                : 'border-gray-300 hover:border-amber-400 bg-white'
-                            }`}
-                            title={item.taskStatus === 'todo' ? 'Mark in progress' : item.taskStatus === 'in_progress' ? 'Mark done' : 'Reset to todo'}
-                            aria-label={item.taskStatus === 'todo' ? 'Mark in progress' : item.taskStatus === 'in_progress' ? 'Mark done' : 'Reset to todo'}
-                          />
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              loggingItemId === item.id ? setLoggingItemId(null) : openLog(item)
-                            }}
-                            className="text-[11px] bg-gray-900 text-white px-2 py-1 rounded-lg hover:bg-gray-700 transition-colors shrink-0"
-                          >
-                            Log time
-                          </button>
+                    <div className="relative flex items-center">
+                      <span className="w-2.5 h-2.5 rounded-full bg-red-500 -ml-1" />
+                      <div className="h-0.5 flex-1 bg-red-500" />
+                    </div>
+                  </div>
+                )}
+
+                {itemsForSelectedDate.map((item) => {
+                  const startMin = toMinutes(item.start_time)
+                  const endMin = toMinutes(item.end_time)
+                  const top = ((startMin - displayStart * 60) / 60) * HOUR_HEIGHT
+                  const height = Math.max(((endMin - startMin) / 60) * HOUR_HEIGHT, 1)
+                  const isActive = item.id === loggingItemId
+                  const trackLabel = item.kind === 'study' ? (item.courseName ?? 'Study') : 'Tutoring'
+                  const taskLabel = item.kind === 'study' ? item.title : item.subtitle
+
+                  return (
+                    <div
+                      key={item.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => openEditor(item)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          openEditor(item)
+                        }
+                      }}
+                      className={`absolute left-2 right-2 rounded-xl border p-2 shadow-sm cursor-pointer transition-shadow overflow-hidden ${isActive ? 'ring-2 ring-gray-800 ring-offset-1 z-10' : 'z-0 hover:shadow-md'}`}
+                      style={{
+                        top,
+                        height,
+                        backgroundColor: item.accentColor + '18',
+                        borderColor: item.accentColor + '55',
+                      }}
+                    >
+                      <div className="flex items-center justify-between gap-2 h-full">
+                        <div className="min-w-0 flex-1 flex items-center gap-3 text-xs">
+                          <span className="shrink-0 font-medium" style={{ color: item.accentColor }}>
+                            {item.start_time.slice(0, 5)} - {item.end_time.slice(0, 5)}
+                          </span>
+
+                          <span className="shrink-0 text-gray-300">·</span>
+                          <span className="shrink-0 text-gray-800">{trackLabel}</span>
+
+                          <span className="shrink-0 text-gray-300">·</span>
+                          <span className="truncate text-gray-900 font-semibold">{taskLabel}</span>
+
+                          <span className="shrink-0 text-gray-300">·</span>
+                          <span className={`shrink-0 ${item.trailingTone}`}>{item.trailingBottom}</span>
                         </div>
-                      )}
+                        {item.kind === 'study' && item.studyTaskId && item.courseId && (
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                startTransition(() => cycleStudyTaskStatus(item.studyTaskId!, item.taskStatus ?? 'todo'))
+                              }}
+                              className={`w-5 h-5 rounded-full border-2 transition-colors ${
+                                item.taskStatus === 'done'
+                                  ? 'bg-green-500 border-green-500'
+                                  : item.taskStatus === 'in_progress'
+                                  ? 'bg-amber-400 border-amber-400'
+                                  : 'border-gray-300 hover:border-amber-400 bg-white'
+                              }`}
+                              title={item.taskStatus === 'todo' ? 'Mark in progress' : item.taskStatus === 'in_progress' ? 'Mark done' : 'Reset to todo'}
+                              aria-label={item.taskStatus === 'todo' ? 'Mark in progress' : item.taskStatus === 'in_progress' ? 'Mark done' : 'Reset to todo'}
+                            />
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                loggingItemId === item.id ? setLoggingItemId(null) : openLog(item)
+                              }}
+                              className="text-[11px] bg-gray-900 text-white px-2 py-1 rounded-lg hover:bg-gray-700 transition-colors shrink-0"
+                            >
+                              Log time
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="mt-1 flex flex-wrap gap-x-2 text-xs text-gray-600">
-                      <span>{item.trailingTop}</span>
-                      <span className={item.trailingTone}>{item.trailingBottom}</span>
-                    </div>
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {activeEditItem && (
