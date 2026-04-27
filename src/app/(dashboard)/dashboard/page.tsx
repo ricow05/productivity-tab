@@ -72,7 +72,11 @@ export default async function DashboardPage() {
 
   const [{ data: entries }, { data: habits }, { data: habitLogs }, { data: tutoringMoments }, { data: studySessions }, { data: studyTasks }] = await Promise.all([
     supabase.from('food_log').select('calories, protein, status').eq('date', today).eq('status', 'eaten'),
-    supabase.from('habits').select('id, name'),
+    supabase
+      .from('habits')
+      .select('id, name')
+      .lte('start_date', today)
+      .or(`type.eq.lifetime,and(type.eq.timed,end_date.gte.${today})`),
     supabase.from('habit_logs').select('habit_id, completed').eq('date', today).eq('completed', true),
     supabase
       .from('teaching_moments')

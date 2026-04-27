@@ -1,5 +1,7 @@
 -- Run this in the Supabase SQL editor
 
+create extension if not exists pgcrypto;
+
 -- Notes table
 create table if not exists public.notes (
   id          uuid primary key default gen_random_uuid(),
@@ -148,8 +150,6 @@ create table if not exists public.courses (
   created_at  timestamptz not null default now()
 );
 
-alter table public.courses add column if not exists course_type text not null default 'school';
-
 -- Study tasks (per course)
 create table if not exists public.study_tasks (
   id                uuid primary key default gen_random_uuid(),
@@ -162,8 +162,6 @@ create table if not exists public.study_tasks (
   hard_deadline     timestamptz,      -- exact timestamp deadline
   created_at        timestamptz not null default now()
 );
-
-alter table public.study_tasks add column if not exists hard_deadline timestamptz;
 
 -- Study blocks (logged work sessions)
 create table if not exists public.study_blocks (
@@ -219,9 +217,6 @@ create table if not exists public.students (
   default_location_type  text not null default 'in_person', -- online | in_person
   created_at             timestamptz not null default now()
 );
-
-alter table public.students add column if not exists default_payment_method text not null default 'cash';
-alter table public.students add column if not exists default_location_type text not null default 'in_person';
 
 create table if not exists public.teaching_moments (
   id               uuid primary key default gen_random_uuid(),
